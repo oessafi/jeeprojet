@@ -1,0 +1,13 @@
+# IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+!user-service/
+!inscription-service/

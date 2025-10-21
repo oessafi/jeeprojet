@@ -1,0 +1,16 @@
+
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: R1
+          uri: lb://USER-SERVICE
+          predicates:
+            - Path= /users/**
+        - id: R2
+          uri: lb://INSCRIPTION-SERVICE
+          predicates:
+            - Path= /inscriptions/**
+
+server:
+  port: 8083
