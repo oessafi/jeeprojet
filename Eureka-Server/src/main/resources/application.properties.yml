@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: config-server
+  cloud:
+    config:
+      server:
+        git:
+          uri: https://github.com/oessafi/microservices-config
+          default-label: main
+          clone-on-start: true
+
+server:
+  port: 8888
+
+# Configuration Eureka Client (optionnel si vous voulez enregistrer le Config Server)
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}
+
+# Actuator endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  endpoint:
+    health:
+      show-details: always
+
+# Logging
+logging:
+  level:
+    org.springframework.cloud.config: DEBUG
+    org.springframework.web: INFO
