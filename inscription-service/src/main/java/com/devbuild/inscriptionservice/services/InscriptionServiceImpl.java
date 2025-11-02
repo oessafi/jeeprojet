@@ -1,5 +1,11 @@
 package com.devbuild.inscriptionservice.services;
 
+// Imports que nous avons ajoutés
+import com.devbuild.inscriptionservice.client.UserClient;
+import com.devbuild.inscriptionservice.dto.user.UserDTO;
+import com.devbuild.inscriptionservice.dto.user.UserResponseWrapper;
+
+// Imports originaux
 import com.devbuild.inscriptionservice.dto.*;
 import com.devbuild.inscriptionservice.enums.AnneeAcademique;
 import com.devbuild.inscriptionservice.enums.InscriptionStatus;
@@ -21,8 +27,14 @@ public class InscriptionServiceImpl implements InscriptionService {
 
     private final Map<String, InscriptionDTO> inscriptionStore = new ConcurrentHashMap<>();
 
-    public InscriptionServiceImpl() {
-        initializeTestData();
+    // 1. Déclaration du client Feign
+    private final UserClient userClient;
+
+    // 2. CONSTRUCTEUR CORRIGÉ
+    // Spring va injecter le UserClient ici
+    public InscriptionServiceImpl(UserClient userClient) {
+        this.userClient = userClient; // Assigne le client
+        initializeTestData(); // Appelle vos données de test
     }
 
     private void initializeTestData() {
@@ -111,11 +123,35 @@ public class InscriptionServiceImpl implements InscriptionService {
     public InscriptionDTO createInscription(CreateInscriptionRequest request) {
         log.info("Création d'une nouvelle inscription pour: {}", request.getDoctorantId());
 
+        // --- 3. DÉBUT DE LA MODIFICATION ---
+        // Appel Feign pour récupérer les infos du doctorant
+        String doctorantName = "Doctorant (non trouvé)";
+        String doctorantEmail = "email@inconnu.ma";
+
+        try {
+            // Appel du client Feign
+            UserResponseWrapper userResponse = userClient.getUserById(request.getDoctorantId());
+
+            if (userResponse != null && userResponse.isSuccess()) {
+                UserDTO user = userResponse.getData();
+                doctorantName = user.getFirstName() + " " + user.getLastName();
+                doctorantEmail = user.getEmail();
+                log.info("Informations utilisateur récupérées via Feign: {}", doctorantName);
+            } else {
+                log.warn("Réponse invalide du user-service pour l'ID: {}", request.getDoctorantId());
+            }
+        } catch (Exception e) {
+            // Gérer l'exception si user-service est injoignable ou si l'ID n'existe pas
+            log.error("Impossible de récupérer l'utilisateur via Feign: {}", e.getMessage());
+        }
+        // --- FIN DE LA MODIFICATION ---
+
+
         InscriptionDTO inscription = InscriptionDTO.builder()
                 .id(UUID.randomUUID().toString())
                 .doctorantId(request.getDoctorantId())
-                .doctorantEmail("doctorant@edu.ma")
-                .doctorantName("Doctorant " + request.getDoctorantId())
+                .doctorantEmail(doctorantEmail) // Utilise l'email récupéré
+                .doctorantName(doctorantName) // Utilise le nom récupéré
                 .directeurId(request.getDirecteurId())
                 .directeurName("Directeur " + request.getDirecteurId())
                 .type(request.getType())
