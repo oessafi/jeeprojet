@@ -3,6 +3,7 @@ package com.devbuild.userservice.services;
 import com.devbuild.userservice.dto.*;
 import com.devbuild.userservice.enums.UserRole;
 import com.devbuild.userservice.enums.UserStatus;
+import org.springframework.security.crypto.password.PasswordEncoder; // <--- IMPORTER
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -18,18 +19,23 @@ import lombok.extern.slf4j.Slf4j;
 public class UserServiceImpl implements UserService {
 
     private final Map<String, UserDTO> userStore = new ConcurrentHashMap<>();
+    private final PasswordEncoder passwordEncoder; // <--- AJOUTER
 
-    public UserServiceImpl() {
+    // INJECTION DE DÉPENDANCE (PasswordEncoder viendra de ApplicationConfig)
+    public UserServiceImpl(PasswordEncoder passwordEncoder) {
+        this.passwordEncoder = passwordEncoder; // <--- AJOUTER
         initializeTestData();
     }
 
     private void initializeTestData() {
         log.info("Initialisation des données de test...");
+        // Mot de passe pour tous les utilisateurs de test : "password"
 
         // Candidat 1
         UserDTO candidat1 = UserDTO.builder()
                 .id(UUID.randomUUID().toString())
                 .email("ahmed.benali@gmail.com")
+                .password(passwordEncoder.encode("password")) // <--- MODIFIER
                 .firstName("Ahmed")
                 .lastName("Benali")
                 .phone("0612345678")
@@ -44,6 +50,7 @@ public class UserServiceImpl implements UserService {
         UserDTO candidat2 = UserDTO.builder()
                 .id(UUID.randomUUID().toString())
                 .email("fatima.zahrae@gmail.com")
+                .password(passwordEncoder.encode("password")) // <--- MODIFIER
                 .firstName("Fatima Zahrae")
                 .lastName("El Amrani")
                 .phone("0698765432")
@@ -58,6 +65,7 @@ public class UserServiceImpl implements UserService {
         UserDTO doctorant1 = UserDTO.builder()
                 .id(UUID.randomUUID().toString())
                 .email("youssef.idrissi@edu.ma")
+                .password(passwordEncoder.encode("password")) // <--- MODIFIER
                 .firstName("Youssef")
                 .lastName("Idrissi")
                 .phone("0677889900")
@@ -73,6 +81,7 @@ public class UserServiceImpl implements UserService {
         UserDTO doctorant2 = UserDTO.builder()
                 .id(UUID.randomUUID().toString())
                 .email("karim.alaoui@edu.ma")
+                .password(passwordEncoder.encode("password")) // <--- MODIFIER
                 .firstName("Karim")
                 .lastName("Alaoui")
                 .phone("0655443322")
@@ -88,6 +97,7 @@ public class UserServiceImpl implements UserService {
         UserDTO directeur = UserDTO.builder()
                 .id(UUID.randomUUID().toString())
                 .email("pr.benomar@univ.ma")
+                .password(passwordEncoder.encode("password")) // <--- MODIFIER
                 .firstName("Mohammed")
                 .lastName("Benomar")
                 .phone("0661234567")
@@ -104,6 +114,7 @@ public class UserServiceImpl implements UserService {
         UserDTO admin = UserDTO.builder()
                 .id(UUID.randomUUID().toString())
                 .email("admin.doctorat@univ.ma")
+                .password(passwordEncoder.encode("password")) // <--- MODIFIER
                 .firstName("Samira")
                 .lastName("Tazi")
                 .phone("0623456789")
@@ -113,8 +124,6 @@ public class UserServiceImpl implements UserService {
                 .updatedAt(LocalDateTime.now().minusWeeks(1))
                 .build();
         userStore.put(admin.getId(), admin);
-
-        //log.info(" {} utilisateurs de test initialisés", userStore.size());
     }
 
     @Override
@@ -132,6 +141,7 @@ public class UserServiceImpl implements UserService {
         UserDTO user = userStore.get(id);
         if (user == null) {
             log.error("Utilisateur non trouvé: {}", id);
+            // Gérer l'erreur, par ex. throw new RuntimeException("Utilisateur non trouvé");
         }
 
         log.info("Utilisateur trouvé: {} {}", user.getFirstName(), user.getLastName());
@@ -148,12 +158,14 @@ public class UserServiceImpl implements UserService {
 
         if (emailExists) {
             log.error("Email déjà existant: {}", request.getEmail());
+            // Gérer l'erreur
         }
 
         // Créer le nouvel utilisateur
         UserDTO newUser = UserDTO.builder()
                 .id(UUID.randomUUID().toString())
                 .email(request.getEmail())
+                .password(passwordEncoder.encode(request.getPassword())) // <--- MODIFIER
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
                 .phone(request.getPhone())
@@ -235,10 +247,12 @@ public class UserServiceImpl implements UserService {
         UserDTO user = userStore.values().stream()
                 .filter(u -> u.getEmail().equalsIgnoreCase(email))
                 .findFirst()
-                .orElseThrow(() -> {
-                    log.error("Utilisateur non trouvé avec l'email: {}", email);
-                    return null;
-                });
+                .orElse(null); // Ne pas lever d'erreur, juste retourner null
+
+        if (user == null) {
+            log.warn("Utilisateur non trouvé avec l'email: {}", email);
+            return null;
+        }
 
         log.info("Utilisateur trouvé: {} {}", user.getFirstName(), user.getLastName());
         return user;
