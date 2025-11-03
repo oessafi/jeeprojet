@@ -1,56 +1,31 @@
 package com.devbuild.userservice.config;
 
-import com.devbuild.userservice.dto.UserDTO;
-import com.devbuild.userservice.services.UserService;
-// PAS DE lombok.RequiredArgsConstructor
+// Importez le nouveau Repository
+import com.devbuild.userservice.repository.UserRepository;
+import lombok.RequiredArgsConstructor; // Vous pouvez utiliser celui-ci maintenant
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Lazy; // <--- IMPORTER CECI
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.util.Collections;
-import java.util.List;
-
 @Configuration
-// @RequiredArgsConstructor // <-- SUPPRIMER CECI
+@RequiredArgsConstructor // C'est OK d'utiliser ça ici
 public class ApplicationConfig {
 
-    private final UserService userService;
-
-    // AJOUTER CE CONSTRUCTEUR AVEC @Lazy
-    public ApplicationConfig(@Lazy UserService userService) {
-        this.userService = userService;
-    }
+    // Injectez le REPOSITORY directement
+    private final UserRepository userRepository;
 
     @Bean
     public UserDetailsService userDetailsService() {
-        return username -> {
-            UserDTO userDto = userService.getUserByEmail(username);
-            if (userDto == null) {
-                throw new UsernameNotFoundException("Utilisateur non trouvé");
-            }
-
-            List<GrantedAuthority> authorities = Collections.singletonList(
-                    new SimpleGrantedAuthority("ROLE_" + userDto.getRole().name())
-            );
-
-            return new User(
-                    userDto.getEmail(),
-                    userDto.getPassword(),
-                    authorities
-            );
-        };
+        return username -> userRepository.findByEmail(username)
+                .orElseThrow(() -> new UsernameNotFoundException("Utilisateur non trouvé"));
+        // L'entité User implémente déjà UserDetails, c'est parfait.
     }
 
     @Bean

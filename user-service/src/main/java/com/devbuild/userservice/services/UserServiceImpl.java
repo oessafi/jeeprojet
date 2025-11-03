@@ -3,169 +3,59 @@ package com.devbuild.userservice.services;
 import com.devbuild.userservice.dto.*;
 import com.devbuild.userservice.enums.UserRole;
 import com.devbuild.userservice.enums.UserStatus;
-import org.springframework.security.crypto.password.PasswordEncoder; // <--- IMPORTER
+import com.devbuild.userservice.model.User; // Importez l'entité
+import com.devbuild.userservice.repository.UserRepository; // Importez le repository
+import lombok.RequiredArgsConstructor; // Importez
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
-
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Random;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor // Utilise Lombok pour l'injection
 public class UserServiceImpl implements UserService {
 
-    private final Map<String, UserDTO> userStore = new ConcurrentHashMap<>();
-    private final PasswordEncoder passwordEncoder; // <--- AJOUTER
+    // Injection via le constructeur (géré par Lombok)
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    // INJECTION DE DÉPENDANCE (PasswordEncoder viendra de ApplicationConfig)
-    public UserServiceImpl(PasswordEncoder passwordEncoder) {
-        this.passwordEncoder = passwordEncoder; // <--- AJOUTER
-        initializeTestData();
-    }
-
-    private void initializeTestData() {
-        log.info("Initialisation des données de test...");
-        // Mot de passe pour tous les utilisateurs de test : "password"
-
-        // Candidat 1
-        UserDTO candidat1 = UserDTO.builder()
-                .id(UUID.randomUUID().toString())
-                .email("ahmed.benali@gmail.com")
-                .password(passwordEncoder.encode("password")) // <--- MODIFIER
-                .firstName("Ahmed")
-                .lastName("Benali")
-                .phone("0612345678")
-                .role(UserRole.CANDIDAT)
-                .status(UserStatus.ACTIF)
-                .createdAt(LocalDateTime.now().minusMonths(1))
-                .updatedAt(LocalDateTime.now().minusMonths(1))
-                .build();
-        userStore.put(candidat1.getId(), candidat1);
-
-        // Candidat 2
-        UserDTO candidat2 = UserDTO.builder()
-                .id(UUID.randomUUID().toString())
-                .email("fatima.zahrae@gmail.com")
-                .password(passwordEncoder.encode("password")) // <--- MODIFIER
-                .firstName("Fatima Zahrae")
-                .lastName("El Amrani")
-                .phone("0698765432")
-                .role(UserRole.CANDIDAT)
-                .status(UserStatus.ACTIF)
-                .createdAt(LocalDateTime.now().minusWeeks(2))
-                .updatedAt(LocalDateTime.now().minusWeeks(2))
-                .build();
-        userStore.put(candidat2.getId(), candidat2);
-
-        // Doctorant 1
-        UserDTO doctorant1 = UserDTO.builder()
-                .id(UUID.randomUUID().toString())
-                .email("youssef.idrissi@edu.ma")
-                .password(passwordEncoder.encode("password")) // <--- MODIFIER
-                .firstName("Youssef")
-                .lastName("Idrissi")
-                .phone("0677889900")
-                .role(UserRole.DOCTORANT)
-                .status(UserStatus.ACTIF)
-                .studentId("D2021001")
-                .createdAt(LocalDateTime.now().minusYears(2))
-                .updatedAt(LocalDateTime.now().minusDays(5))
-                .build();
-        userStore.put(doctorant1.getId(), doctorant1);
-
-        // Doctorant 2
-        UserDTO doctorant2 = UserDTO.builder()
-                .id(UUID.randomUUID().toString())
-                .email("karim.alaoui@edu.ma")
-                .password(passwordEncoder.encode("password")) // <--- MODIFIER
-                .firstName("Karim")
-                .lastName("Alaoui")
-                .phone("0655443322")
-                .role(UserRole.DOCTORANT)
-                .status(UserStatus.ACTIF)
-                .studentId("D2022015")
-                .createdAt(LocalDateTime.now().minusYears(1))
-                .updatedAt(LocalDateTime.now().minusDays(3))
-                .build();
-        userStore.put(doctorant2.getId(), doctorant2);
-
-        // Directeur de thèse
-        UserDTO directeur = UserDTO.builder()
-                .id(UUID.randomUUID().toString())
-                .email("pr.benomar@univ.ma")
-                .password(passwordEncoder.encode("password")) // <--- MODIFIER
-                .firstName("Mohammed")
-                .lastName("Benomar")
-                .phone("0661234567")
-                .role(UserRole.DIRECTEUR_THESE)
-                .status(UserStatus.ACTIF)
-                .specialty("Intelligence Artificielle")
-                .laboratory("Laboratoire Informatique et Systèmes")
-                .createdAt(LocalDateTime.now().minusYears(5))
-                .updatedAt(LocalDateTime.now().minusMonths(2))
-                .build();
-        userStore.put(directeur.getId(), directeur);
-
-        // Personnel Admin
-        UserDTO admin = UserDTO.builder()
-                .id(UUID.randomUUID().toString())
-                .email("admin.doctorat@univ.ma")
-                .password(passwordEncoder.encode("password")) // <--- MODIFIER
-                .firstName("Samira")
-                .lastName("Tazi")
-                .phone("0623456789")
-                .role(UserRole.PERSONNEL_ADMIN)
-                .status(UserStatus.ACTIF)
-                .createdAt(LocalDateTime.now().minusYears(3))
-                .updatedAt(LocalDateTime.now().minusWeeks(1))
-                .build();
-        userStore.put(admin.getId(), admin);
-    }
+    // Nous n'avons plus besoin de userStore ou initializeTestData()
 
     @Override
     public List<UserDTO> getAllUsers() {
-        log.info("Récupération de tous les utilisateurs");
-        List<UserDTO> users = new ArrayList<>(userStore.values());
-        log.info("{} utilisateurs récupérés", users.size());
-        return users;
+        log.info("Récupération de tous les utilisateurs depuis la BDD");
+        return userRepository.findAll()
+                .stream()
+                .map(this::mapUserToDTO) // Convertir chaque User en UserDTO
+                .collect(Collectors.toList());
     }
 
     @Override
     public UserDTO getUserById(String id) {
         log.info("Recherche de l'utilisateur avec ID: {}", id);
-
-        UserDTO user = userStore.get(id);
-        if (user == null) {
-            log.error("Utilisateur non trouvé: {}", id);
-            // Gérer l'erreur, par ex. throw new RuntimeException("Utilisateur non trouvé");
-        }
-
-        log.info("Utilisateur trouvé: {} {}", user.getFirstName(), user.getLastName());
-        return user;
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
+        return mapUserToDTO(user);
     }
 
     @Override
     public UserDTO createUser(CreateUserRequest request) {
         log.info("Création d'un nouvel utilisateur: {}", request.getEmail());
 
-        // Vérifier si l'email existe déjà
-        boolean emailExists = userStore.values().stream()
-                .anyMatch(u -> u.getEmail().equalsIgnoreCase(request.getEmail()));
-
-        if (emailExists) {
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             log.error("Email déjà existant: {}", request.getEmail());
-            // Gérer l'erreur
+            throw new RuntimeException("Email déjà utilisé");
         }
 
-        // Créer le nouvel utilisateur
-        UserDTO newUser = UserDTO.builder()
-                .id(UUID.randomUUID().toString())
+        // Créer l'entité User
+        User newUser = User.builder()
                 .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword())) // <--- MODIFIER
+                .password(passwordEncoder.encode(request.getPassword())) // Crypter le mot de passe
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
                 .phone(request.getPhone())
@@ -173,159 +63,144 @@ public class UserServiceImpl implements UserService {
                 .status(UserStatus.ACTIF)
                 .specialty(request.getSpecialty())
                 .laboratory(request.getLaboratory())
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+                // createdAt et updatedAt seront gérés par @CreationTimestamp
                 .build();
 
-        // Générer un studentId pour les candidats/doctorants
         if (request.getRole() == UserRole.CANDIDAT || request.getRole() == UserRole.DOCTORANT) {
             newUser.setStudentId(generateStudentId(request.getRole()));
         }
 
-        userStore.put(newUser.getId(), newUser);
-        log.info("✅ Utilisateur créé avec succès: {} (ID: {})", newUser.getEmail(), newUser.getId());
+        // Sauvegarder dans la BDD
+        User savedUser = userRepository.save(newUser);
 
-        return newUser;
+        log.info("✅ Utilisateur créé avec succès: {} (ID: {})", savedUser.getEmail(), savedUser.getId());
+        return mapUserToDTO(savedUser); // Retourner le DTO
     }
 
     @Override
     public UserDTO updateUser(String id, UpdateUserRequest request) {
         log.info("Mise à jour de l'utilisateur: {}", id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
 
-        UserDTO user = getUserById(id);
+        // Mettre à jour les champs
+        if (request.getFirstName() != null) user.setFirstName(request.getFirstName());
+        if (request.getLastName() != null) user.setLastName(request.getLastName());
+        if (request.getPhone() != null) user.setPhone(request.getPhone());
+        if (request.getSpecialty() != null) user.setSpecialty(request.getSpecialty());
+        if (request.getLaboratory() != null) user.setLaboratory(request.getLaboratory());
 
-        // Mettre à jour les champs non nuls
-        if (request.getFirstName() != null) {
-            user.setFirstName(request.getFirstName());
-        }
-        if (request.getLastName() != null) {
-            user.setLastName(request.getLastName());
-        }
-        if (request.getPhone() != null) {
-            user.setPhone(request.getPhone());
-        }
-        if (request.getSpecialty() != null) {
-            user.setSpecialty(request.getSpecialty());
-        }
-        if (request.getLaboratory() != null) {
-            user.setLaboratory(request.getLaboratory());
-        }
-
-        user.setUpdatedAt(LocalDateTime.now());
-        userStore.put(id, user);
-
-        log.info("Utilisateur mis à jour: {}", id);
-        return user;
+        User updatedUser = userRepository.save(user); // Sauvegarder les modifications
+        return mapUserToDTO(updatedUser);
     }
 
     @Override
     public void deleteUser(String id) {
         log.info("Suppression de l'utilisateur: {}", id);
-
-        UserDTO user = getUserById(id);
-        userStore.remove(id);
-
-        log.info("Utilisateur supprimé: {} {}", user.getFirstName(), user.getLastName());
+        if (!userRepository.existsById(id)) {
+            throw new RuntimeException("Utilisateur non trouvé");
+        }
+        userRepository.deleteById(id);
     }
 
     @Override
     public List<UserDTO> getUsersByRole(UserRole role) {
         log.info("Recherche des utilisateurs avec le rôle: {}", role);
+        // Note: C'est inefficace. Mieux vaut ajouter une méthode au Repository
+        // @Query("SELECT u FROM User u WHERE u.role = :role")
+        // List<User> findByRole(@Param("role") UserRole role);
 
-        List<UserDTO> users = userStore.values().stream()
+        // Pour l'instant, gardons la logique de filtrage en mémoire :
+        return userRepository.findAll().stream()
                 .filter(u -> u.getRole() == role)
+                .map(this::mapUserToDTO)
                 .collect(Collectors.toList());
-
-        log.info("{} utilisateurs trouvés avec le rôle {}", users.size(), role);
-        return users;
     }
 
     @Override
     public UserDTO getUserByEmail(String email) {
         log.info("Recherche de l'utilisateur par email: {}", email);
-
-        UserDTO user = userStore.values().stream()
-                .filter(u -> u.getEmail().equalsIgnoreCase(email))
-                .findFirst()
-                .orElse(null); // Ne pas lever d'erreur, juste retourner null
-
-        if (user == null) {
-            log.warn("Utilisateur non trouvé avec l'email: {}", email);
-            return null;
-        }
-
-        log.info("Utilisateur trouvé: {} {}", user.getFirstName(), user.getLastName());
-        return user;
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
+        return mapUserToDTO(user);
     }
 
     @Override
     public UserDTO updateUserStatus(String id, UpdateStatusRequest request) {
-        log.info("Changement de statut pour l'utilisateur: {} vers {}", id, request.getStatus());
+        log.info("Changement de statut pour l'utilisateur: {}", id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
 
-        UserDTO user = getUserById(id);
         user.setStatus(request.getStatus());
-        user.setUpdatedAt(LocalDateTime.now());
-        userStore.put(id, user);
+        User updatedUser = userRepository.save(user);
 
-        log.info("Statut mis à jour: {} -> {}", user.getEmail(), request.getStatus());
-        return user;
+        return mapUserToDTO(updatedUser);
     }
 
     @Override
     public UserProfileDTO getUserProfile(String id) {
         log.info("Récupération du profil enrichi: {}", id);
-
-        UserDTO user = getUserById(id);
-
-        // Créer des statistiques selon le rôle
+        UserDTO user = getUserById(id); // Réutilise la méthode qui retourne un DTO
         UserStatistics stats = generateStatistics(user.getRole());
 
-        UserProfileDTO profile = UserProfileDTO.builder()
+        return UserProfileDTO.builder()
                 .user(user)
                 .statistics(stats)
                 .build();
-
-        log.info("Profil enrichi récupéré pour: {}", user.getEmail());
-        return profile;
     }
 
+    // --- Méthodes privées ---
+
+    // Convertit une Entité User en UserDTO
+    private UserDTO mapUserToDTO(User user) {
+        return UserDTO.builder()
+                .id(user.getId())
+                .email(user.getEmail())
+                // Le mot de passe n'est PAS exposé dans le DTO
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .phone(user.getPhone())
+                .role(user.getRole())
+                .status(user.getStatus())
+                .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
+                .specialty(user.getSpecialty())
+                .laboratory(user.getLaboratory())
+                .studentId(user.getStudentId())
+                .build();
+    }
 
     private String generateStudentId(UserRole role) {
         String prefix = role == UserRole.CANDIDAT ? "C" : "D";
         int year = LocalDateTime.now().getYear();
-        int count = (int) userStore.values().stream()
+        // C'est aussi inefficace. Une séquence en BDD serait mieux.
+        long count = userRepository.findAll().stream()
                 .filter(u -> u.getRole() == role)
                 .count() + 1;
         return String.format("%s%d%03d", prefix, year, count);
     }
 
     private UserStatistics generateStatistics(UserRole role) {
+        // (Cette méthode reste inchangée)
         Random random = new Random();
-
         UserStatistics.UserStatisticsBuilder builder = UserStatistics.builder();
-
         switch (role) {
             case DOCTORANT:
                 builder.totalInscriptions(random.nextInt(3) + 1)
                         .pendingDefenses(random.nextInt(2))
                         .completedDefenses(0);
                 break;
-
             case DIRECTEUR_THESE:
                 builder.totalDoctorants(random.nextInt(10) + 5)
                         .activeSupervisions(random.nextInt(5) + 2);
                 break;
-
             case PERSONNEL_ADMIN:
                 builder.totalValidations(random.nextInt(100) + 50)
                         .pendingRequests(random.nextInt(20) + 5);
                 break;
-
             default:
-                // Pas de statistiques pour les candidats
                 break;
         }
-
         return builder.build();
     }
 }
