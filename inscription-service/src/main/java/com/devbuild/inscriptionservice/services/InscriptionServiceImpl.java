@@ -4,6 +4,8 @@ package com.devbuild.inscriptionservice.services;
 import com.devbuild.inscriptionservice.client.UserClient;
 import com.devbuild.inscriptionservice.dto.user.UserDTO;
 import com.devbuild.inscriptionservice.dto.user.UserResponseWrapper;
+import com.devbuild.inscriptionservice.model.Inscription; // Import de l'ENTITÉ
+import com.devbuild.inscriptionservice.repository.InscriptionRepository; // Import du REPOSITORY
 
 // Imports originaux
 import com.devbuild.inscriptionservice.dto.*;
@@ -25,113 +27,53 @@ import java.util.stream.Collectors;
 @Slf4j
 public class InscriptionServiceImpl implements InscriptionService {
 
-    private final Map<String, InscriptionDTO> inscriptionStore = new ConcurrentHashMap<>();
+    // SUPPRIMÉ : private final Map<String, InscriptionDTO> inscriptionStore = new ConcurrentHashMap<>();
 
-    // 1. Déclaration du client Feign
+    // 1. Déclaration du client Feign et du Repository
     private final UserClient userClient;
+    private final InscriptionRepository inscriptionRepository; // AJOUT
 
     // 2. CONSTRUCTEUR CORRIGÉ
-    // Spring va injecter le UserClient ici
-    public InscriptionServiceImpl(UserClient userClient) {
-        this.userClient = userClient; // Assigne le client
-        initializeTestData(); // Appelle vos données de test
+    // Spring va injecter les deux
+    public InscriptionServiceImpl(UserClient userClient, InscriptionRepository inscriptionRepository) {
+        this.userClient = userClient;
+        this.inscriptionRepository = inscriptionRepository; // Assigne le repository
+        // SUPPRIMÉ : initializeTestData();
     }
 
-    private void initializeTestData() {
-        log.info("Initialisation des données de test pour les inscriptions...");
-
-        // Inscription 1 - Validée
-        InscriptionDTO inscription1 = InscriptionDTO.builder()
-                .id(UUID.randomUUID().toString())
-                .doctorantId("DOC001")
-                .doctorantEmail("youssef.idrissi@edu.ma")
-                .doctorantName("Youssef Idrissi")
-                .directeurId("DIR001")
-                .directeurName("Pr. Mohammed Benomar")
-                .type(InscriptionType.INSCRIPTION_INITIALE)
-                .status(InscriptionStatus.VALIDEE)
-                .anneeAcademique(AnneeAcademique.ANNEE_2023_2024)
-                .sujetThese("Intelligence Artificielle appliquée à la santé")
-                .laboratoire("Laboratoire Informatique et Systèmes")
-                .specialite("Intelligence Artificielle")
-                .dateCreation(LocalDateTime.now().minusYears(2))
-                .dateModification(LocalDateTime.now().minusYears(2))
-                .dateValidation(LocalDateTime.now().minusYears(2).plusDays(15))
-                .commentaireDirecteur("Excellent projet, sujet pertinent")
-                .commentaireAdmin("Dossier complet, validé")
-                .build();
-        inscriptionStore.put(inscription1.getId(), inscription1);
-
-        // Inscription 2 - En attente directeur
-        InscriptionDTO inscription2 = InscriptionDTO.builder()
-                .id(UUID.randomUUID().toString())
-                .doctorantId("DOC002")
-                .doctorantEmail("karim.alaoui@edu.ma")
-                .doctorantName("Karim Alaoui")
-                .directeurId("DIR001")
-                .directeurName("Pr. Mohammed Benomar")
-                .type(InscriptionType.INSCRIPTION_INITIALE)
-                .status(InscriptionStatus.EN_ATTENTE_DIRECTEUR)
-                .anneeAcademique(AnneeAcademique.ANNEE_2025_2026)
-                .sujetThese("Blockchain et sécurité des données")
-                .laboratoire("Laboratoire Informatique et Systèmes")
-                .specialite("Sécurité Informatique")
-                .dateCreation(LocalDateTime.now().minusDays(5))
-                .dateModification(LocalDateTime.now().minusDays(5))
-                .build();
-        inscriptionStore.put(inscription2.getId(), inscription2);
-
-        // Inscription 3 - Soumise
-        InscriptionDTO inscription3 = InscriptionDTO.builder()
-                .id(UUID.randomUUID().toString())
-                .doctorantId("CAN001")
-                .doctorantEmail("ahmed.benali@gmail.com")
-                .doctorantName("Ahmed Benali")
-                .directeurId("DIR001")
-                .directeurName("Pr. Mohammed Benomar")
-                .type(InscriptionType.INSCRIPTION_INITIALE)
-                .status(InscriptionStatus.SOUMISE)
-                .anneeAcademique(AnneeAcademique.ANNEE_2025_2026)
-                .sujetThese("Big Data et analyse prédictive")
-                .laboratoire("Laboratoire Informatique et Systèmes")
-                .specialite("Big Data")
-                .dateCreation(LocalDateTime.now().minusDays(2))
-                .dateModification(LocalDateTime.now().minusDays(2))
-                .build();
-        inscriptionStore.put(inscription3.getId(), inscription3);
-
-        log.info("{} inscriptions de test initialisées", inscriptionStore.size());
-    }
+    // SUPPRIMÉ : private void initializeTestData() { ... }
 
     @Override
     public List<InscriptionDTO> getAllInscriptions() {
-        log.info("Récupération de toutes les inscriptions");
-        return new ArrayList<>(inscriptionStore.values());
+        log.info("Récupération de toutes les inscriptions depuis la BDD");
+        return inscriptionRepository.findAll()
+                .stream()
+                .map(this::mapToDTO) // Convertir Entité en DTO
+                .collect(Collectors.toList());
     }
 
     @Override
     public InscriptionDTO getInscriptionById(String id) {
         log.info("Recherche de l'inscription: {}", id);
-        InscriptionDTO inscription = inscriptionStore.get(id);
-        if (inscription == null) {
-            throw new RuntimeException("Inscription non trouvée: " + id);
-        }
-        return inscription;
+        Inscription inscription = getInscriptionEntityById(id);
+        return mapToDTO(inscription);
+    }
+
+    // Méthode privée pour récupérer l'ENTITÉ (utile pour les mises à jour)
+    private Inscription getInscriptionEntityById(String id) {
+        return inscriptionRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Inscription non trouvée: " + id));
     }
 
     @Override
     public InscriptionDTO createInscription(CreateInscriptionRequest request) {
         log.info("Création d'une nouvelle inscription pour: {}", request.getDoctorantId());
 
-        // --- 3. DÉBUT DE LA MODIFICATION ---
-        // Appel Feign pour récupérer les infos du doctorant
+        // --- Logique Feign (inchangée) ---
         String doctorantName = "Doctorant (non trouvé)";
         String doctorantEmail = "email@inconnu.ma";
-
         try {
-            // Appel du client Feign
             UserResponseWrapper userResponse = userClient.getUserById(request.getDoctorantId());
-
             if (userResponse != null && userResponse.isSuccess()) {
                 UserDTO user = userResponse.getData();
                 doctorantName = user.getFirstName() + " " + user.getLastName();
@@ -141,19 +83,18 @@ public class InscriptionServiceImpl implements InscriptionService {
                 log.warn("Réponse invalide du user-service pour l'ID: {}", request.getDoctorantId());
             }
         } catch (Exception e) {
-            // Gérer l'exception si user-service est injoignable ou si l'ID n'existe pas
             log.error("Impossible de récupérer l'utilisateur via Feign: {}", e.getMessage());
         }
-        // --- FIN DE LA MODIFICATION ---
+        // --- Fin Feign ---
 
-
-        InscriptionDTO inscription = InscriptionDTO.builder()
-                .id(UUID.randomUUID().toString())
+        // Construire l'ENTITÉ Inscription
+        Inscription newInscription = Inscription.builder()
+                .id(UUID.randomUUID().toString()) // JPA peut le générer si vous préférez
                 .doctorantId(request.getDoctorantId())
-                .doctorantEmail(doctorantEmail) // Utilise l'email récupéré
-                .doctorantName(doctorantName) // Utilise le nom récupéré
+                .doctorantEmail(doctorantEmail)
+                .doctorantName(doctorantName)
                 .directeurId(request.getDirecteurId())
-                .directeurName("Directeur " + request.getDirecteurId())
+                .directeurName("Directeur " + request.getDirecteurId()) // TODO: Appeler Feign pour le directeur
                 .type(request.getType())
                 .status(InscriptionStatus.SOUMISE)
                 .anneeAcademique(request.getAnneeAcademique())
@@ -161,20 +102,21 @@ public class InscriptionServiceImpl implements InscriptionService {
                 .laboratoire(request.getLaboratoire())
                 .specialite(request.getSpecialite())
                 .coDirecteurId(request.getCoDirecteurId())
-                .dateCreation(LocalDateTime.now())
-                .dateModification(LocalDateTime.now())
+                // dateCreation et dateModification gérées par @...Timestamp
                 .build();
 
-        inscriptionStore.put(inscription.getId(), inscription);
-        log.info("Inscription créée: {}", inscription.getId());
-        return inscription;
+        // Sauvegarder l'ENTITÉ dans la BDD
+        Inscription savedInscription = inscriptionRepository.save(newInscription);
+
+        log.info("Inscription créée: {}", savedInscription.getId());
+        return mapToDTO(savedInscription); // Retourner le DTO
     }
 
     @Override
     public InscriptionDTO updateInscription(String id, UpdateInscriptionRequest request) {
         log.info("Mise à jour de l'inscription: {}", id);
 
-        InscriptionDTO inscription = getInscriptionById(id);
+        Inscription inscription = getInscriptionEntityById(id); // Récupère l'entité
 
         if (request.getSujetThese() != null) {
             inscription.setSujetThese(request.getSujetThese());
@@ -188,19 +130,21 @@ public class InscriptionServiceImpl implements InscriptionService {
         if (request.getCoDirecteurId() != null) {
             inscription.setCoDirecteurId(request.getCoDirecteurId());
         }
+        // dateModification sera mise à jour automatiquement par @UpdateTimestamp
 
-        inscription.setDateModification(LocalDateTime.now());
-        inscriptionStore.put(id, inscription);
+        Inscription updatedInscription = inscriptionRepository.save(inscription);
 
         log.info("Inscription mise à jour: {}", id);
-        return inscription;
+        return mapToDTO(updatedInscription);
     }
 
     @Override
     public void deleteInscription(String id) {
         log.info("Suppression de l'inscription: {}", id);
-        getInscriptionById(id); // Vérifier l'existence
-        inscriptionStore.remove(id);
+        if (!inscriptionRepository.existsById(id)) {
+            throw new RuntimeException("Inscription non trouvée: " + id);
+        }
+        inscriptionRepository.deleteById(id);
         log.info("Inscription supprimée: {}", id);
     }
 
@@ -208,7 +152,7 @@ public class InscriptionServiceImpl implements InscriptionService {
     public InscriptionDTO validateByDirecteur(String id, ValidateInscriptionRequest request) {
         log.info("Validation par directeur: {} - Approuvé: {}", id, request.isApproved());
 
-        InscriptionDTO inscription = getInscriptionById(id);
+        Inscription inscription = getInscriptionEntityById(id);
 
         if (request.isApproved()) {
             inscription.setStatus(InscriptionStatus.APPROUVEE_DIRECTEUR);
@@ -218,18 +162,16 @@ public class InscriptionServiceImpl implements InscriptionService {
             inscription.setCommentaireDirecteur(request.getCommentaire());
         }
 
-        inscription.setDateModification(LocalDateTime.now());
-        inscriptionStore.put(id, inscription);
-
-        log.info("Statut mis à jour: {}", inscription.getStatus());
-        return inscription;
+        Inscription updatedInscription = inscriptionRepository.save(inscription);
+        log.info("Statut mis à jour: {}", updatedInscription.getStatus());
+        return mapToDTO(updatedInscription);
     }
 
     @Override
     public InscriptionDTO validateByAdmin(String id, ValidateInscriptionRequest request) {
         log.info("Validation par admin: {} - Approuvé: {}", id, request.isApproved());
 
-        InscriptionDTO inscription = getInscriptionById(id);
+        Inscription inscription = getInscriptionEntityById(id);
 
         if (request.isApproved()) {
             inscription.setStatus(InscriptionStatus.VALIDEE);
@@ -240,18 +182,15 @@ public class InscriptionServiceImpl implements InscriptionService {
             inscription.setCommentaireAdmin(request.getCommentaire());
         }
 
-        inscription.setDateModification(LocalDateTime.now());
-        inscriptionStore.put(id, inscription);
-
-        log.info("Statut mis à jour: {}", inscription.getStatus());
-        return inscription;
+        Inscription updatedInscription = inscriptionRepository.save(inscription);
+        log.info("Statut mis à jour: {}", updatedInscription.getStatus());
+        return mapToDTO(updatedInscription);
     }
 
     @Override
     public InscriptionStatusDTO getInscriptionStatus(String id) {
         log.info("Récupération du statut: {}", id);
-
-        InscriptionDTO inscription = getInscriptionById(id);
+        Inscription inscription = getInscriptionEntityById(id);
 
         return InscriptionStatusDTO.builder()
                 .id(id)
@@ -264,18 +203,20 @@ public class InscriptionServiceImpl implements InscriptionService {
     @Override
     public List<InscriptionDTO> getInscriptionsByDoctorant(String doctorantId) {
         log.info("Recherche des inscriptions du doctorant: {}", doctorantId);
-
-        return inscriptionStore.values().stream()
-                .filter(i -> i.getDoctorantId().equals(doctorantId))
+        // Utilise la méthode du repository
+        return inscriptionRepository.findByDoctorantId(doctorantId)
+                .stream()
+                .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<InscriptionDTO> getInscriptionsByStatus(InscriptionStatus status) {
         log.info("Recherche des inscriptions avec statut: {}", status);
-
-        return inscriptionStore.values().stream()
-                .filter(i -> i.getStatus() == status)
+        // Utilise la méthode du repository
+        return inscriptionRepository.findByStatus(status)
+                .stream()
+                .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
 
@@ -283,17 +224,15 @@ public class InscriptionServiceImpl implements InscriptionService {
     public InscriptionDTO createReinscription(ReinscriptionRequest request) {
         log.info("Création d'une réinscription pour: {}", request.getDoctorantId());
 
-        // Récupérer l'inscription précédente
-        InscriptionDTO previousInscription = getInscriptionById(request.getPreviousInscriptionId());
+        Inscription previousInscription = getInscriptionEntityById(request.getPreviousInscriptionId());
 
-        // Créer la nouvelle inscription en reprenant les données
-        InscriptionDTO reinscription = InscriptionDTO.builder()
+        Inscription reinscription = Inscription.builder()
                 .id(UUID.randomUUID().toString())
                 .doctorantId(request.getDoctorantId())
                 .doctorantEmail(previousInscription.getDoctorantEmail())
                 .doctorantName(previousInscription.getDoctorantName())
-                .directeurId(previousInscription.getDirecteurId())
-                .directeurName(previousInscription.getDirecteurName())
+                .directeurId(previousInscription.getDirecteurId()) // <-- CORRIGÉ
+                .directeurName(previousInscription.getDirecteurName()) // <-- CORRIGÉ
                 .type(InscriptionType.REINSCRIPTION)
                 .status(InscriptionStatus.SOUMISE)
                 .anneeAcademique(request.getNouvelleAnnee())
@@ -302,13 +241,38 @@ public class InscriptionServiceImpl implements InscriptionService {
                 .laboratoire(previousInscription.getLaboratoire())
                 .specialite(previousInscription.getSpecialite())
                 .coDirecteurId(previousInscription.getCoDirecteurId())
-                .dateCreation(LocalDateTime.now())
-                .dateModification(LocalDateTime.now())
                 .build();
 
-        inscriptionStore.put(reinscription.getId(), reinscription);
-        log.info("Réinscription créée: {}", reinscription.getId());
-        return reinscription;
+        Inscription savedReinscription = inscriptionRepository.save(reinscription);
+        log.info("Réinscription créée: {}", savedReinscription.getId());
+        return mapToDTO(savedReinscription);
+    }
+
+    // --- Méthodes privées (Helpers) ---
+
+    // Convertit une Entité Inscription en InscriptionDTO
+    private InscriptionDTO mapToDTO(Inscription inscription) {
+        return InscriptionDTO.builder()
+                .id(inscription.getId())
+                .doctorantId(inscription.getDoctorantId())
+                .doctorantEmail(inscription.getDoctorantEmail())
+                .doctorantName(inscription.getDoctorantName())
+                .directeurId(inscription.getDirecteurId()) // <-- CORRIGÉ
+                .directeurName(inscription.getDirecteurName()) // <-- CORRIGÉ
+                .type(inscription.getType())
+                .status(inscription.getStatus())
+                .anneeAcademique(inscription.getAnneeAcademique())
+                .sujetThese(inscription.getSujetThese())
+                .laboratoire(inscription.getLaboratoire())
+                .specialite(inscription.getSpecialite())
+                .coDirecteurId(inscription.getCoDirecteurId())
+                .coDirecteurName(inscription.getCoDirecteurName())
+                .commentaireDirecteur(inscription.getCommentaireDirecteur())
+                .commentaireAdmin(inscription.getCommentaireAdmin())
+                .dateCreation(inscription.getDateCreation())
+                .dateModification(inscription.getDateModification())
+                .dateValidation(inscription.getDateValidation())
+                .build();
     }
 
     private String getStatusMessage(InscriptionStatus status) {
