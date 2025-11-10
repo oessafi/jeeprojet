@@ -1,19 +1,24 @@
 package com.devbuild.inscriptionservice.services;
 
-// Imports que nous avons ajoutés
+
 import com.devbuild.inscriptionservice.client.UserClient;
 import com.devbuild.inscriptionservice.dto.user.UserDTO;
 import com.devbuild.inscriptionservice.dto.user.UserResponseWrapper;
-import com.devbuild.inscriptionservice.model.Inscription; // Import de l'ENTITÉ
-import com.devbuild.inscriptionservice.repository.InscriptionRepository; // Import du REPOSITORY
+import com.devbuild.inscriptionservice.model.Inscription;
+import com.devbuild.inscriptionservice.repository.InscriptionRepository;
+import com.devbuild.inscriptionservice.repository.CampagneRepository;
+import com.devbuild.inscriptionservice.model.Document;
+import com.devbuild.inscriptionservice.dto.DocumentInfoDTO; 
 
 // Imports originaux
 import com.devbuild.inscriptionservice.dto.*;
 import com.devbuild.inscriptionservice.enums.AnneeAcademique;
 import com.devbuild.inscriptionservice.enums.InscriptionStatus;
 import com.devbuild.inscriptionservice.enums.InscriptionType;
+import lombok.RequiredArgsConstructor; 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional; /
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -25,25 +30,18 @@ import java.util.stream.Collectors;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor 
 public class InscriptionServiceImpl implements InscriptionService {
 
-    // SUPPRIMÉ : private final Map<String, InscriptionDTO> inscriptionStore = new ConcurrentHashMap<>();
-
-    // 1. Déclaration du client Feign et du Repository
+    // 1. Déclaration des dépendances
     private final UserClient userClient;
-    private final InscriptionRepository inscriptionRepository; // AJOUT
+    private final InscriptionRepository inscriptionRepository;
+    private final CampagneRepository campagneRepository; // <-- AJOUT
 
-    // 2. CONSTRUCTEUR CORRIGÉ
-    // Spring va injecter les deux
-    public InscriptionServiceImpl(UserClient userClient, InscriptionRepository inscriptionRepository) {
-        this.userClient = userClient;
-        this.inscriptionRepository = inscriptionRepository; // Assigne le repository
-        // SUPPRIMÉ : initializeTestData();
-    }
-
-    // SUPPRIMÉ : private void initializeTestData() { ... }
+    // Le constructeur est maintenant géré par @RequiredArgsConstructor
 
     @Override
+    @Transactional(readOnly = true) // <-- ANNOTATION TRANSACTIONNELLE
     public List<InscriptionDTO> getAllInscriptions() {
         log.info("Récupération de toutes les inscriptions depuis la BDD");
         return inscriptionRepository.findAll()
@@ -53,6 +51,7 @@ public class InscriptionServiceImpl implements InscriptionService {
     }
 
     @Override
+    @Transactional(readOnly = true) // <-- ANNOTATION TRANSACTIONNELLE
     public InscriptionDTO getInscriptionById(String id) {
         log.info("Recherche de l'inscription: {}", id);
         Inscription inscription = getInscriptionEntityById(id);
@@ -65,8 +64,24 @@ public class InscriptionServiceImpl implements InscriptionService {
                 .orElseThrow(() -> new RuntimeException("Inscription non trouvée: " + id));
     }
 
+    /**
+     * AJOUT D'UNE MÉTHODE DE VÉRIFICATION
+     * Vérifie si une campagne est active pour le type d'inscription demandé.
+     * Lève une exception si aucune campagne n'est trouvée.
+     */
+    private void checkActiveCampaign(InscriptionType type) {
+        log.info("Vérification de campagne active pour le type: {}", type);
+        campagneRepository.findActiveCampaign(type, LocalDateTime.now())
+                .orElseThrow(() -> new RuntimeException("Aucune campagne active n'est disponible pour " + type));
+    }
+
+
     @Override
+    @Transactional // <-- ANNOTATION TRANSACTIONNELLE
     public InscriptionDTO createInscription(CreateInscriptionRequest request) {
+        // VÉRIFICATION DE LA CAMPAGNE
+        checkActiveCampaign(request.getType());
+
         log.info("Création d'une nouvelle inscription pour: {}", request.getDoctorantId());
 
         // --- Logique Feign (inchangée) ---
@@ -113,6 +128,7 @@ public class InscriptionServiceImpl implements InscriptionService {
     }
 
     @Override
+    @Transactional // <-- ANNOTATION TRANSACTIONNELLE
     public InscriptionDTO updateInscription(String id, UpdateInscriptionRequest request) {
         log.info("Mise à jour de l'inscription: {}", id);
 
@@ -139,6 +155,7 @@ public class InscriptionServiceImpl implements InscriptionService {
     }
 
     @Override
+    @Transactional // <-- ANNOTATION TRANSACTIONNELLE
     public void deleteInscription(String id) {
         log.info("Suppression de l'inscription: {}", id);
         if (!inscriptionRepository.existsById(id)) {
@@ -149,6 +166,7 @@ public class InscriptionServiceImpl implements InscriptionService {
     }
 
     @Override
+    @Transactional // <-- ANNOTATION TRANSACTIONNELLE
     public InscriptionDTO validateByDirecteur(String id, ValidateInscriptionRequest request) {
         log.info("Validation par directeur: {} - Approuvé: {}", id, request.isApproved());
 
@@ -168,6 +186,7 @@ public class InscriptionServiceImpl implements InscriptionService {
     }
 
     @Override
+    @Transactional // <-- ANNOTATION TRANSACTIONNELLE
     public InscriptionDTO validateByAdmin(String id, ValidateInscriptionRequest request) {
         log.info("Validation par admin: {} - Approuvé: {}", id, request.isApproved());
 
@@ -188,6 +207,7 @@ public class InscriptionServiceImpl implements InscriptionService {
     }
 
     @Override
+    @Transactional(readOnly = true) // <-- ANNOTATION TRANSACTIONNELLE
     public InscriptionStatusDTO getInscriptionStatus(String id) {
         log.info("Récupération du statut: {}", id);
         Inscription inscription = getInscriptionEntityById(id);
@@ -201,6 +221,7 @@ public class InscriptionServiceImpl implements InscriptionService {
     }
 
     @Override
+    @Transactional(readOnly = true) // <-- ANNOTATION TRANSACTIONNELLE
     public List<InscriptionDTO> getInscriptionsByDoctorant(String doctorantId) {
         log.info("Recherche des inscriptions du doctorant: {}", doctorantId);
         // Utilise la méthode du repository
@@ -211,6 +232,7 @@ public class InscriptionServiceImpl implements InscriptionService {
     }
 
     @Override
+    @Transactional(readOnly = true) // <-- ANNOTATION TRANSACTIONNELLE
     public List<InscriptionDTO> getInscriptionsByStatus(InscriptionStatus status) {
         log.info("Recherche des inscriptions avec statut: {}", status);
         // Utilise la méthode du repository
@@ -221,7 +243,11 @@ public class InscriptionServiceImpl implements InscriptionService {
     }
 
     @Override
+    @Transactional // <-- ANNOTATION TRANSACTIONNELLE
     public InscriptionDTO createReinscription(ReinscriptionRequest request) {
+        // VÉRIFICATION DE LA CAMPAGNE
+        checkActiveCampaign(InscriptionType.REINSCRIPTION);
+
         log.info("Création d'une réinscription pour: {}", request.getDoctorantId());
 
         Inscription previousInscription = getInscriptionEntityById(request.getPreviousInscriptionId());
@@ -231,8 +257,8 @@ public class InscriptionServiceImpl implements InscriptionService {
                 .doctorantId(request.getDoctorantId())
                 .doctorantEmail(previousInscription.getDoctorantEmail())
                 .doctorantName(previousInscription.getDoctorantName())
-                .directeurId(previousInscription.getDirecteurId()) // <-- CORRIGÉ
-                .directeurName(previousInscription.getDirecteurName()) // <-- CORRIGÉ
+                .directeurId(previousInscription.getDirecteurId())
+                .directeurName(previousInscription.getDirecteurName())
                 .type(InscriptionType.REINSCRIPTION)
                 .status(InscriptionStatus.SOUMISE)
                 .anneeAcademique(request.getNouvelleAnnee())
@@ -252,13 +278,31 @@ public class InscriptionServiceImpl implements InscriptionService {
 
     // Convertit une Entité Inscription en InscriptionDTO
     private InscriptionDTO mapToDTO(Inscription inscription) {
+
+        List<DocumentInfoDTO> documentInfos = new ArrayList<>();
+        // Cette ligne est maintenant sûre car la méthode appelante est @Transactional
+        try {
+            if (inscription.getDocuments() != null) {
+                documentInfos = inscription.getDocuments().stream()
+                        .map(doc -> DocumentInfoDTO.builder()
+                                .id(doc.getId())
+                                .fileName(doc.getFileName())
+                                .contentType(doc.getContentType())
+                                .fileSize(doc.getFileSize())
+                                .build())
+                        .collect(Collectors.toList());
+            }
+        } catch (Exception e) {
+            log.warn("Impossible de charger la liste de documents pour l'inscription {}: {}", inscription.getId(), e.getMessage());
+        }
+
         return InscriptionDTO.builder()
                 .id(inscription.getId())
                 .doctorantId(inscription.getDoctorantId())
                 .doctorantEmail(inscription.getDoctorantEmail())
                 .doctorantName(inscription.getDoctorantName())
-                .directeurId(inscription.getDirecteurId()) // <-- CORRIGÉ
-                .directeurName(inscription.getDirecteurName()) // <-- CORRIGÉ
+                .directeurId(inscription.getDirecteurId())
+                .directeurName(inscription.getDirecteurName())
                 .type(inscription.getType())
                 .status(inscription.getStatus())
                 .anneeAcademique(inscription.getAnneeAcademique())
@@ -267,6 +311,7 @@ public class InscriptionServiceImpl implements InscriptionService {
                 .specialite(inscription.getSpecialite())
                 .coDirecteurId(inscription.getCoDirecteurId())
                 .coDirecteurName(inscription.getCoDirecteurName())
+                .documents(documentInfos) // <-- Champ mis à jour
                 .commentaireDirecteur(inscription.getCommentaireDirecteur())
                 .commentaireAdmin(inscription.getCommentaireAdmin())
                 .dateCreation(inscription.getDateCreation())
