@@ -32,7 +32,7 @@ public class DemandeSoutenance {
     @Column(nullable = false)
     private SoutenanceStatus status;
 
-    // Prérequis validés
+    // --- Validation des Prérequis ---
     @Column(nullable = false)
     private Integer nbArticlesQ1Q2;
 
@@ -46,6 +46,15 @@ public class DemandeSoutenance {
 
     @OneToMany(mappedBy = "demandeSoutenance", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<SoutenanceDocument> documents;
+
+    // --- AJOUTS ---
+    @OneToMany(mappedBy = "demandeSoutenance", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<JuryMembre> membresJury;
+
+    private LocalDateTime dateSoutenance;
+
+    private String lieuSoutenance;
+
 
     @CreationTimestamp
     private LocalDateTime dateCreation;

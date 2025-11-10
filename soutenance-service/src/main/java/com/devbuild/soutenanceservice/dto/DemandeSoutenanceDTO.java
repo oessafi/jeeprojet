@@ -19,4 +19,10 @@ public class DemandeSoutenanceDTO {
     private LocalDateTime dateCreation;
     private String commentaireAdmin;
     private List<DocumentInfoDTO> documents;
+
+    // --- AJOUTS ---
+    private List<JuryMembreDTO> membresJury;
+    private LocalDateTime dateSoutenance;
+    private String lieuSoutenance;
+    // --- FIN DES AJOUTS ---
 }
