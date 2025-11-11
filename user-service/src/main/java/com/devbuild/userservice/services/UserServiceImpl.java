@@ -149,6 +149,19 @@ public class UserServiceImpl implements UserService {
                 .build();
     }
 
+    @Override
+    public UserDTO getByEmail(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
+
+        // Convertir User en UserDTO
+        UserDTO dto = new UserDTO();
+        dto.setEmail(user.getEmail());
+        dto.setRole(user.getRole()); // ou user.getRoles() selon ta structure
+        return dto;
+    }
+
+
     // --- Méthodes privées ---
 
     // Convertit une Entité User en UserDTO

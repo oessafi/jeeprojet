@@ -2,7 +2,7 @@ package com.devbuild.userservice.controller;
 
 import com.devbuild.userservice.config.JwtService;
 import com.devbuild.userservice.dto.*;
-import com.devbuild.userservice.services.UserService;
+import com.devbuild.userservice.services.UserService; // Assurez-vous que c'est importé
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/users")
+@RequestMapping("/users") // Garde le /users comme préfixe
 @RequiredArgsConstructor
 public class AuthController {
 
@@ -54,6 +54,18 @@ public class AuthController {
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
         String token = jwtService.generateToken(userDetails);
 
-        return ResponseEntity.ok(new AuthResponse(token));
+        // --- MODIFICATION ---
+        // Récupérer le UserDTO complet pour l'inclure dans la réponse
+        // Note: Le DTO s'assure que le mot de passe n'est pas exposé
+        UserDTO userDTO = userService.getUserByEmail(request.getEmail());
+
+        // Construire la nouvelle réponse
+        AuthResponse authResponse = AuthResponse.builder()
+                .token(token)
+                .user(userDTO) // <-- Ajouter l'objet utilisateur
+                .build();
+
+        return ResponseEntity.ok(authResponse);
+
     }
 }
