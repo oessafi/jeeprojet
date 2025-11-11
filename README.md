@@ -1,4 +1,7 @@
-Projet Microservices : Gestion de DoctoratCe projet démontre une architecture microservices complète basée sur Spring Boot et Spring Cloud pour gérer un processus d'inscription et de soutenance de doctorat.L'architecture met en œuvre la découverte de services, la configuration centralisée, un point d'entrée unique (Gateway), la sécurité (JWT) et la tolérance aux pannes.🏗️ Architecture des ComposantsVoici la nouvelle architecture du système :             [ Client (Postman/Navigateur) ]
+Projet Microservices : Gestion de DoctoratCe projet démontre une architecture microservices complète basée sur Spring Boot et Spring Cloud pour gérer un processus d'inscription et de soutenance de doctorat.L'architecture met en œuvre la découverte de services, la configuration centralisée, un point d'entrée unique (Gateway), la sécurité (JWT) et la tolérance aux pannes.
+🏗️ Architecture des ComposantsVoici la nouvelle architecture du système :
+
+          [ Client (Postman/Navigateur) ]
                         |
                         v
 +-----------------------+------------------------+
@@ -22,6 +25,8 @@ v           v           v           v
 | [ 🔄 Eureka Server (Port: 8761) ]                    |
 | (Tous les services s'enregistrent ici)               |
 +------------------------------------------------------+
+
+
 📦 Composants du ProjetServicePortRôleConfigServer8888Centralise la configuration de tous les microservices.Eureka-Server8761Service de découverte (annuaire).gateway-service8080Point d'entrée unique (API Gateway), sécurise les routes.user-service8081Gère les utilisateurs, l'inscription et l'authentification JWT1.inscription-service8082Gère les dossiers d'inscription et de réinscription.soutenance-service8084Gère les demandes de soutenance, le jury et la planification.🚀 Guide de DémarrageL'ordre de démarrage est critique. Vous devez démarrer les services d'infrastructure en premier.Étape 1 : Démarrer l'Infrastructure (Config & Eureka)Bash# Terminal 1 - Config Server (DOIT être démarré en premier)
 cd ConfigServer
 mvn spring-boot:run
