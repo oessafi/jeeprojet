@@ -1,6 +1,5 @@
 package com.devbuild.inscriptionservice.services;
 
-
 import com.devbuild.inscriptionservice.client.UserClient;
 import com.devbuild.inscriptionservice.dto.user.UserDTO;
 import com.devbuild.inscriptionservice.dto.user.UserResponseWrapper;
@@ -8,17 +7,17 @@ import com.devbuild.inscriptionservice.model.Inscription;
 import com.devbuild.inscriptionservice.repository.InscriptionRepository;
 import com.devbuild.inscriptionservice.repository.CampagneRepository;
 import com.devbuild.inscriptionservice.model.Document;
-import com.devbuild.inscriptionservice.dto.DocumentInfoDTO; 
+import com.devbuild.inscriptionservice.dto.DocumentInfoDTO;
 
 // Imports originaux
 import com.devbuild.inscriptionservice.dto.*;
 import com.devbuild.inscriptionservice.enums.AnneeAcademique;
 import com.devbuild.inscriptionservice.enums.InscriptionStatus;
 import com.devbuild.inscriptionservice.enums.InscriptionType;
-import lombok.RequiredArgsConstructor; 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional; /
+import org.springframework.transaction.annotation.Transactional; // <-- CORRECTION ICI
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -28,9 +27,13 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+// AJOUT DES IMPORTS POUR RESILIENCE4J
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
+
 @Service
 @Slf4j
-@RequiredArgsConstructor 
+@RequiredArgsConstructor
 public class InscriptionServiceImpl implements InscriptionService {
 
     // 1. Déclaration des dépendances
@@ -78,6 +81,9 @@ public class InscriptionServiceImpl implements InscriptionService {
 
     @Override
     @Transactional // <-- ANNOTATION TRANSACTIONNELLE
+    // AJOUT : Annotations Resilience4J
+    @CircuitBreaker(name = "userServiceCB", fallbackMethod = "fallbackCreateInscription")
+    @Retry(name = "userServiceRetry")
     public InscriptionDTO createInscription(CreateInscriptionRequest request) {
         // VÉRIFICATION DE LA CAMPAGNE
         checkActiveCampaign(request.getType());
@@ -99,6 +105,8 @@ public class InscriptionServiceImpl implements InscriptionService {
             }
         } catch (Exception e) {
             log.error("Impossible de récupérer l'utilisateur via Feign: {}", e.getMessage());
+            // Important : Relancer l'exception pour que Retry et CircuitBreaker la détectent
+            throw new RuntimeException("User-service inaccessible: " + e.getMessage(), e);
         }
         // --- Fin Feign ---
 
@@ -126,6 +134,41 @@ public class InscriptionServiceImpl implements InscriptionService {
         log.info("Inscription créée: {}", savedInscription.getId());
         return mapToDTO(savedInscription); // Retourner le DTO
     }
+
+    /**
+     * AJOUT : Méthode de Fallback pour createInscription.
+     * Appelée par Resilience4J lorsque le Circuit Breaker est ouvert.
+     *
+     * @param request La requête originale
+     * @param ex      L'exception qui a causé la panne
+     * @return Un DTO d'inscription avec des valeurs par défaut
+     */
+    public InscriptionDTO fallbackCreateInscription(CreateInscriptionRequest request, Exception ex) {
+        log.warn("Circuit Breaker OPEN - Fallback activé pour createInscription. Cause: {}", ex.getMessage());
+
+        // Créer une réponse partielle sans appeler le user-service
+        Inscription newInscription = Inscription.builder()
+                .id(UUID.randomUUID().toString())
+                .doctorantId(request.getDoctorantId())
+                .doctorantEmail("email@inconnu.ma") // Valeur par défaut
+                .doctorantName("Doctorant (Service indisponible)") // Valeur par défaut
+                .directeurId(request.getDirecteurId())
+                .directeurName("Directeur (Service indisponible)") // Valeur par défaut
+                .type(request.getType())
+                .status(InscriptionStatus.SOUMISE) // Ou un statut "EN_ATTENTE_VALIDATION_MANUELLE"
+                .anneeAcademique(request.getAnneeAcademique())
+                .sujetThese(request.getSujetThese())
+                .laboratoire(request.getLaboratoire())
+                .specialite(request.getSpecialite())
+                .coDirecteurId(request.getCoDirecteurId())
+                .build();
+
+        Inscription savedInscription = inscriptionRepository.save(newInscription);
+        log.warn("Inscription {} créée en mode fallback (dégradé).", savedInscription.getId());
+
+        return mapToDTO(savedInscription);
+    }
+
 
     @Override
     @Transactional // <-- ANNOTATION TRANSACTIONNELLE
