@@ -43,10 +43,11 @@ public class SoutenanceServiceImpl implements SoutenanceService {
     // ... (initierDemande, validerDemandeAdmin, addDocument, getDocument, getDemandeById restent inchangés) ...
     @Override
     @Transactional
+    import org.springframework.kafka.core.KafkaTemplate;
     public DemandeSoutenanceDTO initierDemande(DemandeSoutenanceRequest request) {
         log.info("Initiation d'une demande de soutenance pour le doctorant {}", request.getDoctorantId());
 
-        // 1. Validation des prérequis
+        private final KafkaTemplate<String, Object> kafkaTemplate;
         if (request.getNbArticlesQ1Q2() < REQUIS_ARTICLES_Q1Q2) {
             throw new RuntimeException("Prérequis non atteint: " + REQUIS_ARTICLES_Q1Q2 + " articles Q1/Q2 requis.");
         }
@@ -89,7 +90,7 @@ public class SoutenanceServiceImpl implements SoutenanceService {
     @Override
     @Transactional
     public DemandeSoutenanceDTO validerDemandeAdmin(String demandeId, ValidationAdminRequest request) {
-        log.info("Validation admin pour la demande {}", demandeId);
+                kafkaTemplate.send("notification-topic", email);
         DemandeSoutenance demande = getDemandeEntityById(demandeId);
 
         if (request.isApprouvee()) {
@@ -121,7 +122,7 @@ public class SoutenanceServiceImpl implements SoutenanceService {
     @Override
     @Transactional
     public DocumentInfoDTO addDocument(String demandeId, DocumentType documentType, MultipartFile file) throws IOException {
-        log.info("Ajout du document {} à la demande {}", file.getOriginalFilename(), demandeId);
+                kafkaTemplate.send("notification-topic", email);
         DemandeSoutenance demande = getDemandeEntityById(demandeId);
 
         SoutenanceDocument document = SoutenanceDocument.builder()
@@ -161,7 +162,7 @@ public class SoutenanceServiceImpl implements SoutenanceService {
     public DemandeSoutenanceDTO proposerJury(String demandeId, PropositionJuryRequest request) {
         log.info("Proposition du jury pour la demande {}", demandeId);
         DemandeSoutenance demande = getDemandeEntityById(demandeId);
-
+                kafkaTemplate.send("notification-topic", email);
         // On ne peut proposer un jury que si l'admin a validé les prérequis
         if (demande.getStatus() != SoutenanceStatus.VALIDEE_ADMIN) {
             throw new RuntimeException("La demande doit être validée par l'administration avant de proposer un jury.");
@@ -191,11 +192,11 @@ public class SoutenanceServiceImpl implements SoutenanceService {
             notificationClient.sendNotification(email);
         } catch (Exception e) {
             log.error("Échec notification proposition jury {}: {}", demandeId, e.getMessage());
-        }
+                kafkaTemplate.send("notification-topic", new EmailRequest("doctorant@univ.ma", subject, body));
 
         return mapToDTO(savedDemande);
     }
-
+                    kafkaTemplate.send("notification-topic", new EmailRequest(membre.getEmail(), subject, body));
     @Override
     @Transactional
     public DemandeSoutenanceDTO planifierSoutenance(String demandeId, PlanificationRequest request) {
