@@ -12,12 +12,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/notifications")
 public class NotificationController {
 
-    @Autowired
-    private EmailService emailService;
+	@Autowired
+	private EmailService emailService;
 
-    @PostMapping("/send-email")
-    public String sendEmail(@RequestBody EmailRequest emailRequest) {
-        emailService.sendEmail(emailRequest.getTo(), emailRequest.getSubject(), emailRequest.getBody());
-        return "Email sent successfully!";
-    }
+	@PostMapping("/send-email")
+	public String sendEmail(@RequestBody EmailRequest emailRequest) {
+		emailService.sendEmail(emailRequest.getTo(), emailRequest.getSubject(), emailRequest.getBody());
+		return "Email sent successfully!";
+	}
 }

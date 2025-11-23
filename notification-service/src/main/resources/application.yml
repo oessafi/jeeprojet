@@ -1,12 +1,14 @@
 spring:
   application:
     name: notification-service
+  config:
+    import: optional:configserver:http://localhost:8888
   kafka:
     consumer:
       bootstrap-servers: localhost:9092
       group-id: notification-group
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "*"
   mail:
@@ -19,6 +21,9 @@ spring:
         smtp:
           auth: true
           starttls.enable: true
+
+server:
+  port: 8086
 
 eureka:
   client:
