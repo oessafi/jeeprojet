@@ -4,6 +4,7 @@ spring:
   config:
     import: optional:configserver:http://localhost:8888
   kafka:
+    # --- PARTIE 1 : CONSUMER ---
     consumer:
       bootstrap-servers: localhost:9092
       group-id: notification-group
@@ -11,16 +12,25 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "*"
+
+    # --- PARTIE 2 : PRODUCER ---
+    producer:
+      bootstrap-servers: localhost:9092
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+
   mail:
-    host: smtp.mailtrap.io
-    port: 2525
-    username: your-mailtrap-username
-    password: your-mailtrap-password
+    host: smtp.gmail.com
+    port: 587
+    username: oe03409@gmail.com
+    password: zbobxiufphuaozon
     properties:
       mail:
         smtp:
           auth: true
-          starttls.enable: true
+          starttls:
+            enable: true
 
 server:
   port: 8086
