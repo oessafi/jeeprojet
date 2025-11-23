@@ -20,6 +20,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional; // <-- CORRECTION ICI
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.Period;
+import java.util.Optional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -293,7 +296,33 @@ public class InscriptionServiceImpl implements InscriptionService {
 
         log.info("Création d'une réinscription pour: {}", request.getDoctorantId());
 
+        // Récupérer l'inscription précédente (celle référencée dans la requête)
         Inscription previousInscription = getInscriptionEntityById(request.getPreviousInscriptionId());
+
+        // Récupérer l'inscription initiale du doctorant pour appliquer les règles
+        try {
+            Optional<Inscription> initialOpt = inscriptionRepository
+                    .findFirstByDoctorantIdAndTypeOrderByDateCreationAsc(request.getDoctorantId(), InscriptionType.INSCRIPTION_INITIALE);
+            if (initialOpt.isPresent()) {
+                Inscription initial = initialOpt.get();
+                if (initial.getDateCreation() != null) {
+                    int years = Period.between(initial.getDateCreation().toLocalDate(), LocalDate.now()).getYears();
+                    if (years > 6) {
+                        throw new RuntimeException("Réinscription impossible : la durée maximale depuis l'inscription initiale (6 ans) est dépassée.");
+                    }
+                    if (years > 3) {
+                        log.warn("Doctorant {}: {} années depuis l'inscription initiale - vérifier le dossier avant réinscription.", request.getDoctorantId(), years);
+                    }
+                }
+            } else {
+                log.warn("Aucune inscription initiale trouvée pour le doctorant {}. Procédure de réinscription normale appliquée.", request.getDoctorantId());
+            }
+        } catch (RuntimeException ex) {
+            // Propager les exceptions métier
+            throw ex;
+        } catch (Exception e) {
+            log.warn("Erreur lors de la récupération de l'inscription initiale pour {}: {}", request.getDoctorantId(), e.getMessage());
+        }
 
         Inscription reinscription = Inscription.builder()
                 .id(UUID.randomUUID().toString())
