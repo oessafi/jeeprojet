@@ -2,7 +2,9 @@ package com.devbuild.soutenanceservice.controller;
 
 import com.devbuild.soutenanceservice.dto.*;
 import com.devbuild.soutenanceservice.enums.DocumentType;
+import com.devbuild.soutenanceservice.model.DemandeSoutenance;
 import com.devbuild.soutenanceservice.model.SoutenanceDocument;
+import com.devbuild.soutenanceservice.repository.DemandeSoutenanceRepository;
 import com.devbuild.soutenanceservice.services.SoutenanceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +15,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
 @RestController
 @Slf4j
 @RequiredArgsConstructor
@@ -20,10 +26,9 @@ import org.springframework.web.multipart.MultipartFile;
 public class SoutenanceController {
 
     private final SoutenanceService soutenanceService;
+    // Injection directe du repository pour la lecture simple (ou passer par le service)
+    private final DemandeSoutenanceRepository demandeRepository;
 
-    /**
-     * Étape 1: Le doctorant initie sa demande (formulaire)
-     */
     @PostMapping
     public ResponseEntity<DemandeSoutenanceDTO> initierDemande(@RequestBody DemandeSoutenanceRequest request) {
         log.info("POST /soutenances - Initiation de la demande");
@@ -42,9 +47,35 @@ public class SoutenanceController {
         return ResponseEntity.ok(soutenanceService.getDemandeById(id));
     }
 
-    /**
-     * Étape 2: Le doctorant uploade les documents requis
-     */
+    // --- NOUVEL ENDPOINT POUR FEIGN (USER-SERVICE) ---
+    @GetMapping("/doctorant/{doctorantId}")
+    public ResponseEntity<SoutenanceListResponse> getSoutenancesByDoctorant(@PathVariable String doctorantId) {
+        log.info("GET /soutenances/doctorant/{}", doctorantId);
+
+        // Récupération via Repository (plus direct pour une liste simple)
+        List<DemandeSoutenance> demandes = demandeRepository.findByDoctorantId(doctorantId);
+
+        // Conversion en DTOs
+        // Note: Idéalement, exposez une méthode mapToDTO publique dans le Service ou un Mapper dédié
+        // Ici, nous utilisons le service pour récupérer le DTO unitaire pour simplifier
+        List<DemandeSoutenanceDTO> dtos = demandes.stream()
+                .map(d -> soutenanceService.getDemandeById(d.getId()))
+                .collect(Collectors.toList());
+
+        // Construction de la réponse
+        // Assurez-vous d'avoir créé la classe SoutenanceListResponse dans le package dto
+        SoutenanceListResponse response = SoutenanceListResponse.builder()
+                .success(true)
+                .message("Soutenances du doctorant récupérées")
+                .data(dtos)
+                .total(dtos.size())
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+    // ------------------------------------------------
+
     @PostMapping("/{id}/documents")
     public ResponseEntity<DocumentInfoDTO> uploadDocument(
             @PathVariable String id,
@@ -61,9 +92,6 @@ public class SoutenanceController {
         }
     }
 
-    /**
-     * Endpoint pour télécharger un document de soutenance
-     */
     @GetMapping("/documents/{docId}")
     public ResponseEntity<byte[]> getDocument(@PathVariable String docId) {
         log.info("GET /documents/{}", docId);
@@ -74,11 +102,7 @@ public class SoutenanceController {
                 .body(document.getData());
     }
 
-    /**
-     * Étape 3: L'administration valide les prérequis et les documents
-     */
     @PutMapping("/{id}/valider")
-    // TODO: Sécuriser (Admin seulement)
     public ResponseEntity<DemandeSoutenanceDTO> validerDemande(
             @PathVariable String id,
             @RequestBody ValidationAdminRequest request) {
@@ -88,13 +112,7 @@ public class SoutenanceController {
         return ResponseEntity.ok(dto);
     }
 
-    // --- NOUVEAUX ENDPOINTS ---
-
-    /**
-     * Étape 4: Le directeur de thèse propose le jury
-     */
     @PostMapping("/{id}/jury")
-    // TODO: Sécuriser (Directeur de thèse seulement)
     public ResponseEntity<DemandeSoutenanceDTO> proposerJury(
             @PathVariable String id,
             @RequestBody PropositionJuryRequest request) {
@@ -109,11 +127,7 @@ public class SoutenanceController {
         }
     }
 
-    /**
-     * Étape 5: L'administration planifie la soutenance (date/lieu)
-     */
     @PutMapping("/{id}/planifier")
-    // TODO: Sécuriser (Admin seulement)
     public ResponseEntity<DemandeSoutenanceDTO> planifierSoutenance(
             @PathVariable String id,
             @RequestBody PlanificationRequest request) {

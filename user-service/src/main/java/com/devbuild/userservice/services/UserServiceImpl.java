@@ -1,37 +1,39 @@
 package com.devbuild.userservice.services;
 
+import com.devbuild.userservice.client.InscriptionClient;
+import com.devbuild.userservice.client.SoutenanceClient;
 import com.devbuild.userservice.dto.*;
 import com.devbuild.userservice.enums.UserRole;
 import com.devbuild.userservice.enums.UserStatus;
-import com.devbuild.userservice.model.User; // Importez l'entité
-import com.devbuild.userservice.repository.UserRepository; // Importez le repository
-import lombok.RequiredArgsConstructor; // Importez
+import com.devbuild.userservice.model.User;
+import com.devbuild.userservice.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Random;
 import java.util.stream.Collectors;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor // Utilise Lombok pour l'injection
+@RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
-    // Injection via le constructeur (géré par Lombok)
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    // Nous n'avons plus besoin de userStore ou initializeTestData()
+    // --- Injection des Clients Feign ---
+    private final InscriptionClient inscriptionClient;
+    private final SoutenanceClient soutenanceClient;
 
     @Override
     public List<UserDTO> getAllUsers() {
         log.info("Récupération de tous les utilisateurs depuis la BDD");
         return userRepository.findAll()
                 .stream()
-                .map(this::mapUserToDTO) // Convertir chaque User en UserDTO
+                .map(this::mapUserToDTO)
                 .collect(Collectors.toList());
     }
 
@@ -52,10 +54,9 @@ public class UserServiceImpl implements UserService {
             throw new RuntimeException("Email déjà utilisé");
         }
 
-        // Créer l'entité User
         User newUser = User.builder()
                 .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword())) // Crypter le mot de passe
+                .password(passwordEncoder.encode(request.getPassword()))
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
                 .phone(request.getPhone())
@@ -63,18 +64,15 @@ public class UserServiceImpl implements UserService {
                 .status(UserStatus.ACTIF)
                 .specialty(request.getSpecialty())
                 .laboratory(request.getLaboratory())
-                // createdAt et updatedAt seront gérés par @CreationTimestamp
                 .build();
 
         if (request.getRole() == UserRole.CANDIDAT || request.getRole() == UserRole.DOCTORANT) {
             newUser.setStudentId(generateStudentId(request.getRole()));
         }
 
-        // Sauvegarder dans la BDD
         User savedUser = userRepository.save(newUser);
-
         log.info("✅ Utilisateur créé avec succès: {} (ID: {})", savedUser.getEmail(), savedUser.getId());
-        return mapUserToDTO(savedUser); // Retourner le DTO
+        return mapUserToDTO(savedUser);
     }
 
     @Override
@@ -83,14 +81,13 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
 
-        // Mettre à jour les champs
         if (request.getFirstName() != null) user.setFirstName(request.getFirstName());
         if (request.getLastName() != null) user.setLastName(request.getLastName());
         if (request.getPhone() != null) user.setPhone(request.getPhone());
         if (request.getSpecialty() != null) user.setSpecialty(request.getSpecialty());
         if (request.getLaboratory() != null) user.setLaboratory(request.getLaboratory());
 
-        User updatedUser = userRepository.save(user); // Sauvegarder les modifications
+        User updatedUser = userRepository.save(user);
         return mapUserToDTO(updatedUser);
     }
 
@@ -106,11 +103,6 @@ public class UserServiceImpl implements UserService {
     @Override
     public List<UserDTO> getUsersByRole(UserRole role) {
         log.info("Recherche des utilisateurs avec le rôle: {}", role);
-        // Note: C'est inefficace. Mieux vaut ajouter une méthode au Repository
-        // @Query("SELECT u FROM User u WHERE u.role = :role")
-        // List<User> findByRole(@Param("role") UserRole role);
-
-        // Pour l'instant, gardons la logique de filtrage en mémoire :
         return userRepository.findAll().stream()
                 .filter(u -> u.getRole() == role)
                 .map(this::mapUserToDTO)
@@ -140,8 +132,9 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserProfileDTO getUserProfile(String id) {
         log.info("Récupération du profil enrichi: {}", id);
-        UserDTO user = getUserById(id); // Réutilise la méthode qui retourne un DTO
-        UserStatistics stats = generateStatistics(user.getRole());
+        UserDTO user = getUserById(id);
+        // Utilisation de l'ID réel de l'utilisateur pour récupérer ses stats
+        UserStatistics stats = generateRealStatistics(user.getId(), user.getRole());
 
         return UserProfileDTO.builder()
                 .user(user)
@@ -153,23 +146,15 @@ public class UserServiceImpl implements UserService {
     public UserDTO getByEmail(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
-
-        // Convertir User en UserDTO
-        UserDTO dto = new UserDTO();
-        dto.setEmail(user.getEmail());
-        dto.setRole(user.getRole()); // ou user.getRoles() selon ta structure
-        return dto;
+        return mapUserToDTO(user);
     }
 
+    // --- Helpers ---
 
-    // --- Méthodes privées ---
-
-    // Convertit une Entité User en UserDTO
     private UserDTO mapUserToDTO(User user) {
         return UserDTO.builder()
                 .id(user.getId())
                 .email(user.getEmail())
-                // Le mot de passe n'est PAS exposé dans le DTO
                 .firstName(user.getFirstName())
                 .lastName(user.getLastName())
                 .phone(user.getPhone())
@@ -186,34 +171,54 @@ public class UserServiceImpl implements UserService {
     private String generateStudentId(UserRole role) {
         String prefix = role == UserRole.CANDIDAT ? "C" : "D";
         int year = LocalDateTime.now().getYear();
-        // C'est aussi inefficace. Une séquence en BDD serait mieux.
         long count = userRepository.findAll().stream()
                 .filter(u -> u.getRole() == role)
                 .count() + 1;
         return String.format("%s%d%03d", prefix, year, count);
     }
 
-    private UserStatistics generateStatistics(UserRole role) {
-        // (Cette méthode reste inchangée)
-        Random random = new Random();
+    // Remplacement de l'ancienne méthode mockée par des appels réels
+    private UserStatistics generateRealStatistics(String userId, UserRole role) {
         UserStatistics.UserStatisticsBuilder builder = UserStatistics.builder();
-        switch (role) {
-            case DOCTORANT:
-                builder.totalInscriptions(random.nextInt(3) + 1)
-                        .pendingDefenses(random.nextInt(2))
-                        .completedDefenses(0);
-                break;
-            case DIRECTEUR_THESE:
-                builder.totalDoctorants(random.nextInt(10) + 5)
-                        .activeSupervisions(random.nextInt(5) + 2);
-                break;
-            case PERSONNEL_ADMIN:
-                builder.totalValidations(random.nextInt(100) + 50)
-                        .pendingRequests(random.nextInt(20) + 5);
-                break;
-            default:
-                break;
+
+        // Initialisation des valeurs par défaut à 0
+        builder.totalInscriptions(0)
+                .pendingDefenses(0)
+                .completedDefenses(0)
+                .totalDoctorants(0)
+                .activeSupervisions(0)
+                .totalValidations(0)
+                .pendingRequests(0);
+
+        try {
+            if (role == UserRole.DOCTORANT) {
+                // 1. Appel à Inscription Service
+                try {
+                    InscriptionListResponse inscriptions = inscriptionClient.getInscriptionsByDoctorant(userId);
+                    if (inscriptions != null && inscriptions.isSuccess()) {
+                        builder.totalInscriptions(inscriptions.getTotal());
+                    }
+                } catch (Exception e) {
+                    log.warn("Impossible de récupérer les inscriptions pour {}: {}", userId, e.getMessage());
+                }
+
+                // 2. Appel à Soutenance Service
+                try {
+                    SoutenanceListResponse soutenances = soutenanceClient.getSoutenancesByDoctorant(userId);
+                    if (soutenances != null && soutenances.isSuccess()) {
+                        builder.pendingDefenses(soutenances.getTotal());
+                        // Ici on pourrait filtrer par statut pour affiner completedDefenses vs pendingDefenses
+                    }
+                } catch (Exception e) {
+                    log.warn("Impossible de récupérer les soutenances pour {}: {}", userId, e.getMessage());
+                }
+            }
+            // TODO: Ajouter la logique pour les Directeurs et Admins quand les endpoints seront dispos
+
+        } catch (Exception e) {
+            log.error("Erreur globale lors de la génération des statistiques pour {}", userId, e);
         }
+
         return builder.build();
     }
 }
