@@ -9,11 +9,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class NotificationConsumer {
 
-	@Autowired
-	private EmailService emailService;
+    @Autowired
+    private EmailService emailService;
 
-	@KafkaListener(topics = "notification-topic", groupId = "notification-group")
-	public void consume(EmailRequest emailRequest) {
-		emailService.sendEmail(emailRequest.getTo(), emailRequest.getSubject(), emailRequest.getBody());
-	}
+    @KafkaListener(topics = "notification-topic", groupId = "notification-group")
+    public void consume(EmailRequest emailRequest) {
+        emailService.sendEmail(emailRequest.getTo(), emailRequest.getSubject(), emailRequest.getBody());
+    }
 }

@@ -12,7 +12,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.List; // <-- AJOUT
+import java.util.List;
 
 @Data
 @Builder
@@ -23,7 +23,7 @@ import java.util.List; // <-- AJOUT
 public class Inscription {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+    @GeneratedValue(strategy = GenerationType.UUID) // C'est cette ligne qui génère l'ID automatiquement
     private String id;
 
     @Column(nullable = false)
@@ -69,7 +69,6 @@ public class Inscription {
 
     private LocalDateTime dateValidation;
 
-    // --- AJOUT DE LA RELATION INVERSE ---
     @OneToMany(mappedBy = "inscription", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Document> documents;
 }

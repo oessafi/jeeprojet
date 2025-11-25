@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient; // Nouvel import
 
 @SpringBootApplication(exclude = {DataSourceAutoConfiguration.class})
-@EnableDiscoveryClient // Utilise ceci à la place de @EnableEurekaClient
+@EnableDiscoveryClient
 public class NotificationServiceApplication {
 
     public static void main(String[] args) {
